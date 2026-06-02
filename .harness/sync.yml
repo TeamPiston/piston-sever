@@ -2,7 +2,7 @@ groups:
   - claude
   - codex
 
-base_branch: main
+base_branch: develop
 language: ko
 
 overrides:
