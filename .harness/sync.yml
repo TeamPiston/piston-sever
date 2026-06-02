@@ -2,21 +2,32 @@ groups:
   - claude
   - codex
 
-pr:
-  language: ko
-  base_branch: main
+base_branch: main
+language: ko
 
 overrides:
-  # hooks 사용 시 dispatcher + settings 는 반드시 함께 활성화
-  dispatcher: true
-  settings: true
+  # Kotlin 전용 스킬 제외 (TypeScript/NestJS 프로젝트)
+  claude/skills/kotest-guide: false
+  claude/skills/kotlin-spring-arch: false
+  claude/skills/migration-guide: false
+  claude/skills/database-schema: false
+  codex/skills/kotest-guide: false
+  codex/skills/kotlin-spring-arch: false
+  codex/skills/migration-guide: false
+  codex/skills/database-schema: false
 
-  # Security & Safety
-  secret-guard: true
-  command-guard: true
+  # Claude 훅 (dispatcher + settings는 반드시 함께)
+  claude/hooks/dispatcher: true
+  claude/settings: true
+  claude/hooks/secret-guard: true
+  claude/hooks/command-guard: true
+  claude/hooks/eslint: true
+  claude/hooks/prettier: true
+  claude/hooks/ts-check: true
+  claude/hooks/jest: true
 
-  # TypeScript / NestJS tooling
-  eslint: true
-  prettier: true
-  ts-check: true
-  jest: true
+  # Codex 훅 (Claude와 별개)
+  codex/hooks/dispatcher: true
+  codex/hooks-json: true
+  codex/hooks/secret-guard: true
+  codex/hooks/command-guard: true
