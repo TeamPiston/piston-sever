@@ -1,0 +1,22 @@
+groups:
+  - claude
+  - codex
+
+pr:
+  language: ko
+  base_branch: main
+
+overrides:
+  # hooks 사용 시 dispatcher + settings 는 반드시 함께 활성화
+  dispatcher: true
+  settings: true
+
+  # Security & Safety
+  secret-guard: true
+  command-guard: true
+
+  # TypeScript / NestJS tooling
+  eslint: true
+  prettier: true
+  ts-check: true
+  jest: true
