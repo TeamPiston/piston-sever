@@ -4,6 +4,7 @@ import { exec } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { promisify } from 'util';
+import { FilesService } from '../../files/application/files.service';
 import { SCAD_GENERATOR_PORT } from '../domain/ports/scad-generator.port';
 import type { ScadGeneratorPort } from '../domain/ports/scad-generator.port';
 
@@ -16,12 +17,12 @@ export class OpenscadService {
   constructor(
     @Inject(SCAD_GENERATOR_PORT) private readonly generator: ScadGeneratorPort,
     private readonly configService: ConfigService,
+    private readonly filesService: FilesService,
   ) {}
 
   async generateScad(prompt: string, jobId: string): Promise<string> {
     const scadContent = await this.generator.generate(prompt);
-    const outputDir = this.configService.get<string>('OUTPUT_DIR', './output');
-    await fs.mkdir(outputDir, { recursive: true });
+    const outputDir = await this.filesService.resolveOutputDir();
     const scadPath = path.join(outputDir, `${jobId}.scad`);
     await fs.writeFile(scadPath, scadContent, 'utf-8');
     this.logger.log(`SCAD 파일 생성: ${scadPath}`);
@@ -29,7 +30,7 @@ export class OpenscadService {
   }
 
   async convertToStl(scadPath: string, jobId: string): Promise<string> {
-    const outputDir = this.configService.get<string>('OUTPUT_DIR', './output');
+    const outputDir = await this.filesService.resolveOutputDir();
     const stlPath = path.join(outputDir, `${jobId}.stl`);
     const openscadBin = this.configService.get<string>(
       'OPENSCAD_BIN',
