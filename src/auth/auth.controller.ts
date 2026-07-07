@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './application/auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
@@ -11,6 +12,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('send')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @HttpCode(204)
   async sendCode(@Body() dto: SendCodeDto): Promise<void> {
     await this.authService.sendVerificationCode(dto.email);
@@ -31,14 +33,27 @@ export class AuthController {
   @Post('reissue')
   @UseGuards(RefreshTokenGuard)
   @HttpCode(200)
-  reissue(@CurrentUser() user: { userId: string; loginId: string }) {
-    return this.authService.reissue(user.userId, user.loginId);
+  reissue(
+    @CurrentUser()
+    user: {
+      userId: string;
+      loginId: string;
+      sessionId: string;
+    },
+  ) {
+    return this.authService.reissue({
+      sub: user.userId,
+      loginId: user.loginId,
+      sessionId: user.sessionId,
+    });
   }
 
   @Post('logout')
   @UseGuards(RefreshTokenGuard)
   @HttpCode(204)
-  async logout(@CurrentUser() user: { userId: string }): Promise<void> {
-    await this.authService.logout(user.userId);
+  async logout(
+    @CurrentUser() user: { userId: string; sessionId: string },
+  ): Promise<void> {
+    await this.authService.logout(user.userId, user.sessionId);
   }
 }

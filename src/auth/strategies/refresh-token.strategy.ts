@@ -1,10 +1,11 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import * as bcrypt from 'bcrypt';
 import { Request } from 'express';
 import Redis from 'ioredis';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { JWT_REFRESH_SECRET } from '../infrastructure/jwt/jwt-secrets.provider';
+import { refreshTokenKey } from '../infrastructure/redis/redis-keys';
 import { REDIS_CLIENT } from '../infrastructure/redis/redis.provider';
 import { JwtPayload } from '../types/jwt-payload.interface';
 
@@ -14,20 +15,22 @@ export class RefreshTokenStrategy extends PassportStrategy(
   'jwt-refresh',
 ) {
   constructor(
-    configService: ConfigService,
+    @Inject(JWT_REFRESH_SECRET) refreshTokenSecret: string,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_REFRESH_SECRET')!,
+      secretOrKey: refreshTokenSecret,
       passReqToCallback: true,
     });
   }
 
   async validate(req: Request, payload: JwtPayload) {
     const refreshToken = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
-    const storedHash = await this.redis.get(`refresh-token:${payload.sub}`);
+    const storedHash = await this.redis.get(
+      refreshTokenKey(payload.sub, payload.sessionId),
+    );
     if (!storedHash || !refreshToken) {
       throw new UnauthorizedException('유효하지 않은 토큰입니다.');
     }
@@ -37,6 +40,11 @@ export class RefreshTokenStrategy extends PassportStrategy(
       throw new UnauthorizedException('유효하지 않은 토큰입니다.');
     }
 
-    return { userId: payload.sub, loginId: payload.loginId, refreshToken };
+    return {
+      userId: payload.sub,
+      loginId: payload.loginId,
+      sessionId: payload.sessionId,
+      refreshToken,
+    };
   }
 }
