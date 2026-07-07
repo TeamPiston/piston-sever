@@ -9,10 +9,11 @@ export class MailService {
 
   constructor(private readonly configService: ConfigService) {
     this.from = this.configService.get<string>('SMTP_USER', '');
+    const port = Number(this.configService.get<string>('SMTP_PORT'));
     this.transporter = createTransport({
       host: this.configService.get<string>('SMTP_HOST'),
-      port: this.configService.get<number>('SMTP_PORT'),
-      secure: this.configService.get<number>('SMTP_PORT') === 465,
+      port,
+      secure: port === 465,
       auth: {
         user: this.from,
         pass: this.configService.get<string>('SMTP_PASS'),
