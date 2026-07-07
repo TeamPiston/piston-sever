@@ -16,6 +16,15 @@ export class GptScadGenerator implements ScadGeneratorPort {
         { role: 'user', content: prompt },
       ],
     });
-    return response.choices[0].message.content ?? '';
+    const content = response.choices[0]?.message.content;
+    if (!content) {
+      throw new Error('OpenAI로부터 SCAD 코드를 생성하지 못했습니다.');
+    }
+    return stripCodeFence(content);
   }
+}
+
+function stripCodeFence(content: string): string {
+  const match = content.trim().match(/^```[a-zA-Z]*\n([\s\S]*?)\n```$/);
+  return match ? match[1] : content;
 }
