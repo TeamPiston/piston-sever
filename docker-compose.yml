@@ -1,0 +1,29 @@
+services:
+  app:
+    build: .
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./output:/app/output
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SCAD_GENERATOR=${SCAD_GENERATOR:-hardcoded}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - MOONRAKER_URL=${MOONRAKER_URL}
+      - OUTPUT_DIR=/app/output
+      - OPENSCAD_BIN=/usr/bin/openscad
+      - CURA_BIN=/usr/bin/CuraEngine
+      - CURA_DEFINITIONS_PATH=/usr/share/cura-engine/resources/definitions
+      - CURA_PROFILE_PATH=/app/profiles/qidi_max4.def.json
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
