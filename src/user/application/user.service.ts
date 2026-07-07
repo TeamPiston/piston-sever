@@ -9,10 +9,6 @@ export class UserService {
     @InjectRepository(User) private readonly userRepository: Repository<User>,
   ) {}
 
-  findByEmail(email: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { email } });
-  }
-
   findByLoginId(loginId: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { loginId } });
   }
