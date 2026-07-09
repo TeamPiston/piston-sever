@@ -38,6 +38,7 @@ import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
     AccessTokenGuard,
     RefreshTokenGuard,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: AccessTokenGuard },
   ],
   exports: [AccessTokenGuard],
 })

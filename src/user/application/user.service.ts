@@ -13,6 +13,10 @@ export class UserService {
     return this.userRepository.findOne({ where: { loginId } });
   }
 
+  findByEmail(email: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { email } });
+  }
+
   existsByEmail(email: string): Promise<boolean> {
     return this.userRepository.exists({ where: { email } });
   }
