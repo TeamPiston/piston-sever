@@ -2,12 +2,14 @@ import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './application/auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { Public } from './decorators/public.decorator';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { SendCodeDto } from './dto/send-code.dto';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 
 @Controller()
+@Public()
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
