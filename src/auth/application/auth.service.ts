@@ -2,6 +2,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -78,12 +79,11 @@ export class AuthService {
       );
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
     try {
       await this.userService.create({
         loginId: dto.id,
         email,
-        password: hashedPassword,
+        password: dto.password,
       });
     } catch (error) {
       if (isDuplicateEntryError(error)) {
@@ -92,6 +92,26 @@ export class AuthService {
       throw error;
     }
     await this.redis.del(verificationCodeKey(email));
+  }
+
+  async findId(rawEmail: string): Promise<void> {
+    const email = normalizeEmail(rawEmail);
+    const user = await this.userService.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('가입된 계정이 없습니다.');
+    }
+
+    await this.mailService.sendIdRecovery(email, user.loginId);
+  }
+
+  async findPassword(rawEmail: string): Promise<void> {
+    const email = normalizeEmail(rawEmail);
+    const user = await this.userService.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('가입된 계정이 없습니다.');
+    }
+
+    await this.mailService.sendPasswordRecovery(email, user.password);
   }
 
   async login(
@@ -104,8 +124,7 @@ export class AuthService {
       );
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
-    if (!isPasswordValid) {
+    if (dto.password !== user.password) {
       throw new UnauthorizedException(
         '아이디 또는 비밀번호가 올바르지 않습니다.',
       );
