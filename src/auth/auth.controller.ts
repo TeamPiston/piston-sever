@@ -3,6 +3,8 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './application/auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
+import { FindIdDto } from './dto/find-id.dto';
+import { FindPasswordDto } from './dto/find-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { SendCodeDto } from './dto/send-code.dto';
@@ -30,6 +32,20 @@ export class AuthController {
   @HttpCode(200)
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('find-id')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @HttpCode(204)
+  async findId(@Body() dto: FindIdDto): Promise<void> {
+    await this.authService.findId(dto.email);
+  }
+
+  @Post('find-password')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @HttpCode(204)
+  async findPassword(@Body() dto: FindPasswordDto): Promise<void> {
+    await this.authService.findPassword(dto.email);
   }
 
   @Post('reissue')
