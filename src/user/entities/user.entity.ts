@@ -7,7 +7,7 @@ import {
 
 @Entity('users')
 export class User {
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true, name: 'user_id' })
+  @PrimaryGeneratedColumn({ type: 'bigint', name: 'user_id' })
   userId: string;
 
   @Column({ name: 'login_id', type: 'varchar', length: 30, unique: true })
@@ -24,7 +24,7 @@ export class User {
 
   @CreateDateColumn({
     name: 'created_at',
-    type: 'datetime',
+    type: 'timestamp',
     precision: 3,
     default: () => 'CURRENT_TIMESTAMP(3)',
   })

@@ -3,27 +3,47 @@ services:
     build: .
     ports:
       - '3000:3000'
-    volumes:
-      - ./output:/app/output
+    env_file:
+      - .env
     environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - SCAD_GENERATOR=${SCAD_GENERATOR:-hardcoded}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - MOONRAKER_URL=${MOONRAKER_URL}
-      - OUTPUT_DIR=/app/output
-      - OPENSCAD_BIN=/usr/bin/openscad
-      - CURA_BIN=/usr/bin/CuraEngine
-      - CURA_DEFINITIONS_PATH=/usr/share/cura-engine/resources/definitions
-      - CURA_PROFILE_PATH=/app/profiles/qidi_max4.def.json
+    volumes:
+      - ./output:/app/output
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER}']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   redis:
     image: redis:7-alpine
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
