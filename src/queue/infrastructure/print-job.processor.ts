@@ -5,17 +5,34 @@ import { OpenscadService } from '../../openscad/application/openscad.service';
 import { PrinterService } from '../../printer/application/printer.service';
 import { SlicerService } from '../../slicer/application/slicer.service';
 
+/**
+ * 출력 파이프라인 작업을 처리하는 BullMQ 큐의 이름.
+ */
 export const PRINT_PIPELINE_QUEUE = 'print-pipeline';
 
+/**
+ * 출력 파이프라인 작업(job)의 데이터 구조.
+ * 현재 진행 단계와 각 단계 산출물 경로를 담아 재시도 시 완료된 단계를 건너뛸 수 있게 한다.
+ */
 export interface PrintJobData {
+  /** 작업을 식별하는 고유 ID. */
   jobId: string;
+  /** SCAD 코드 생성에 사용되는 원본 프롬프트. */
   prompt: string;
+  /** 파이프라인의 현재 진행 단계. */
   stage: 'generate' | 'slice' | 'print' | 'printing' | 'done';
+  /** 생성된 SCAD 파일 경로 (생성 단계 완료 후 설정). */
   scadPath?: string;
+  /** SCAD로부터 변환된 STL 파일 경로 (STL 변환 완료 후 설정). */
   stlPath?: string;
+  /** 슬라이싱 결과 G-code 파일 경로 (슬라이싱 완료 후 설정). */
   gcodePath?: string;
 }
 
+/**
+ * SCAD 생성 → STL 변환 → 슬라이싱 → 출력으로 이어지는 출력 파이프라인 작업을 처리하는 BullMQ 프로세서.
+ * 각 단계 완료 시 job 데이터를 갱신해 재시도 시 이미 완료된 단계를 다시 수행하지 않도록 한다.
+ */
 @Processor(PRINT_PIPELINE_QUEUE)
 export class PrintJobProcessor extends WorkerHost {
   private readonly logger = new Logger(PrintJobProcessor.name);
@@ -28,6 +45,10 @@ export class PrintJobProcessor extends WorkerHost {
     super();
   }
 
+  /**
+   * job 데이터의 stage를 기준으로 SCAD 생성/STL 변환, 슬라이싱, 출력을 순서대로 수행한다.
+   * 각 단계 완료 후 job 데이터를 갱신하여, 재시도 시 이미 완료된 단계와 중복 출력을 건너뛴다.
+   */
   async process(job: Job<PrintJobData>): Promise<void> {
     const { jobId, prompt } = job.data;
     let { stlPath, gcodePath } = job.data;

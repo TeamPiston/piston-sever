@@ -31,4 +31,8 @@ import { OpenaiModule } from '../openai/openai.module';
   ],
   exports: [OpenscadService],
 })
+/**
+ * OpenSCAD 코드 생성 기능을 구성하는 모듈.
+ * SCAD_GENERATOR 환경변수 값에 따라 GPT 기반 생성기 또는 하드코딩된 생성기를 SCAD_GENERATOR_PORT로 주입한다.
+ */
 export class OpenscadModule {}
