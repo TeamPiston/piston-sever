@@ -24,4 +24,8 @@ import { QueueController } from './queue.controller';
   providers: [QueueService, PrintJobProcessor],
   controllers: [QueueController],
 })
+/**
+ * 프린트 파이프라인 BullMQ 큐를 등록하고, OpenSCAD/Slicer/Printer 모듈과
+ * 연동하여 QueueService와 PrintJobProcessor를 제공하는 모듈.
+ */
 export class QueueModule {}

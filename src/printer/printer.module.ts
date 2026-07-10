@@ -8,4 +8,7 @@ import { MoonrakerAdapter } from './infrastructure/moonraker.adapter';
   providers: [MoonrakerAdapter, PrinterService],
   exports: [PrinterService],
 })
+/**
+ * 프린터 출력 기능(Moonraker 연동)을 구성하는 모듈.
+ */
 export class PrinterModule {}

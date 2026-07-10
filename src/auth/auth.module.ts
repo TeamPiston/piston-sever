@@ -18,6 +18,10 @@ import { redisProvider } from './infrastructure/redis/redis.provider';
 import { AccessTokenStrategy } from './strategies/access-token.strategy';
 import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
 
+/**
+ * 인증/인가 관련 컨트롤러, 서비스, JWT 전략, 가드, Redis 및 메일 프로바이더를 구성하는 모듈.
+ * 전역 스로틀링(ThrottlerGuard)과 액세스 토큰 검증(AccessTokenGuard)을 APP_GUARD로 등록한다.
+ */
 @Module({
   imports: [
     ConfigModule,

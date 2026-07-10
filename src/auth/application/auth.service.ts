@@ -31,6 +31,10 @@ const ACCESS_TOKEN_EXPIRES_IN = '15m';
 const REFRESH_TOKEN_EXPIRES_IN = '7d';
 const BCRYPT_SALT_ROUNDS = 10;
 
+/**
+ * 회원가입, 로그인, 아이디/비밀번호 찾기 및 JWT 발급/재발급/폐기를 담당하는 인증 서비스.
+ * Redis를 이용해 인증코드와 리프레시 토큰(해시)을 TTL과 함께 관리한다.
+ */
 @Injectable()
 export class AuthService {
   constructor(
@@ -42,6 +46,10 @@ export class AuthService {
     @Inject(JWT_REFRESH_SECRET) private readonly refreshTokenSecret: string,
   ) {}
 
+  /**
+   * 이메일 가입 여부를 확인한 뒤, 6자리 인증코드를 생성해 Redis에 5분간 저장하고 메일로 발송한다.
+   * 이미 가입된 이메일이면 `ConflictException`을 던진다.
+   */
   async sendVerificationCode(rawEmail: string): Promise<void> {
     const email = normalizeEmail(rawEmail);
     const alreadyExists = await this.userService.existsByEmail(email);
@@ -59,6 +67,12 @@ export class AuthService {
     await this.mailService.sendVerificationCode(email, code);
   }
 
+  /**
+   * 이메일/아이디 중복 및 인증코드 일치 여부를 확인한 뒤 신규 사용자를 생성한다.
+   * 검증 실패 시 `ConflictException` 또는 `UnauthorizedException`을 던지며,
+   * DB 유니크 제약 위반(동시 가입 등)도 `ConflictException`으로 변환해 던진다.
+   * 가입 성공 시 사용한 인증코드는 Redis에서 삭제한다.
+   */
   async register(dto: RegisterDto): Promise<void> {
     const email = normalizeEmail(dto.email);
     const [emailExists, idExists] = await Promise.all([
@@ -94,6 +108,10 @@ export class AuthService {
     await this.redis.del(verificationCodeKey(email));
   }
 
+  /**
+   * 이메일로 가입된 계정을 조회해 아이디를 메일로 안내한다.
+   * 계정이 없으면 `NotFoundException`을 던진다.
+   */
   async findId(rawEmail: string): Promise<void> {
     const email = normalizeEmail(rawEmail);
     const user = await this.userService.findByEmail(email);
@@ -104,6 +122,10 @@ export class AuthService {
     await this.mailService.sendIdRecovery(email, user.loginId);
   }
 
+  /**
+   * 이메일로 가입된 계정을 조회해 비밀번호를 메일로 안내한다.
+   * 계정이 없으면 `NotFoundException`을 던진다.
+   */
   async findPassword(rawEmail: string): Promise<void> {
     const email = normalizeEmail(rawEmail);
     const user = await this.userService.findByEmail(email);
@@ -114,6 +136,10 @@ export class AuthService {
     await this.mailService.sendPasswordRecovery(email, user.password);
   }
 
+  /**
+   * 아이디/비밀번호를 검증하여 로그인을 처리하고, 새 세션 ID로 액세스/리프레시 토큰 쌍을 발급한다.
+   * 아이디가 없거나 비밀번호가 일치하지 않으면 `UnauthorizedException`을 던진다.
+   */
   async login(
     dto: LoginDto,
   ): Promise<{ accessToken: string; refreshToken: string }> {
@@ -137,10 +163,16 @@ export class AuthService {
     });
   }
 
+  /**
+   * 기존 페이로드(사용자/세션 정보)로 새 액세스 토큰만 재발급한다.
+   */
   async reissue(payload: JwtPayload): Promise<{ accessToken: string }> {
     return { accessToken: await this.signAccessToken(payload) };
   }
 
+  /**
+   * 지정한 사용자/세션에 해당하는 리프레시 토큰을 Redis에서 삭제하여 로그아웃 처리한다.
+   */
   async logout(userId: string, sessionId: string): Promise<void> {
     await this.redis.del(refreshTokenKey(userId, sessionId));
   }
