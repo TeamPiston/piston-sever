@@ -42,6 +42,7 @@ export class QueueService {
       status,
       stage: (job.data as PrintJobData).stage ?? 'generate',
       failedReason: job.failedReason ?? null,
+      modelUrl: (job.data as PrintJobData).modelUrl ?? null,
     };
   }
 }
