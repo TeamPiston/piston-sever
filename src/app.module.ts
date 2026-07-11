@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { ChatModule } from './chat/chat.module';
 import { UserModule } from './user/user.module';
 import { OpenaiModule } from './openai/openai.module';
 import { OpenscadModule } from './openscad/openscad.module';
@@ -54,6 +55,7 @@ import { ThreeDModule } from './3d/3d.module';
     FilesModule,
     MeshyModule,
     ThreeDModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
