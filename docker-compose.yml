@@ -10,12 +10,15 @@ services:
       - DB_PORT=5432
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - MINIO_ENDPOINT=http://minio:9000
     volumes:
       - ./output:/app/output
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
   postgres:
