@@ -1,5 +1,6 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
+import { FilesModule } from '../files/files.module';
 import { OpenscadModule } from '../openscad/openscad.module';
 import { PrinterModule } from '../printer/printer.module';
 import { SlicerModule } from '../slicer/slicer.module';
@@ -20,9 +21,11 @@ import { QueueController } from './queue.controller';
     OpenscadModule,
     SlicerModule,
     PrinterModule,
+    FilesModule,
   ],
   providers: [QueueService, PrintJobProcessor],
   controllers: [QueueController],
+  exports: [QueueService],
 })
 /**
  * 프린트 파이프라인 BullMQ 큐를 등록하고, OpenSCAD/Slicer/Printer 모듈과

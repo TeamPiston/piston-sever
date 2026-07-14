@@ -1,6 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
+import { FilesService } from '../../files/application/files.service';
 import { OpenscadService } from '../../openscad/application/openscad.service';
 import { PrinterService } from '../../printer/application/printer.service';
 import { SlicerService } from '../../slicer/application/slicer.service';
@@ -27,6 +28,8 @@ export interface PrintJobData {
   stlPath?: string;
   /** 슬라이싱 결과 G-code 파일 경로 (슬라이싱 완료 후 설정). */
   gcodePath?: string;
+  /** MinIO에 업로드된 STL 파일의 공개 URL (STL 업로드 완료 후 설정). */
+  modelUrl?: string;
 }
 
 /**
@@ -41,6 +44,7 @@ export class PrintJobProcessor extends WorkerHost {
     private readonly openscadService: OpenscadService,
     private readonly slicerService: SlicerService,
     private readonly printerService: PrinterService,
+    private readonly filesService: FilesService,
   ) {
     super();
   }
@@ -62,7 +66,24 @@ export class PrintJobProcessor extends WorkerHost {
       this.logger.log(`[${jobId}] SCAD 생성 시작`);
       const scadPath = await this.openscadService.generateScad(prompt, jobId);
       stlPath = await this.openscadService.convertToStl(scadPath, jobId);
-      await job.updateData({ ...job.data, stage: 'slice', scadPath, stlPath });
+
+      let modelUrl: string | undefined;
+      try {
+        modelUrl = await this.filesService.uploadFile(
+          `models/${jobId}.stl`,
+          stlPath,
+        );
+      } catch (error) {
+        this.logger.error(`[${jobId}] STL MinIO 업로드 실패`, error);
+      }
+
+      await job.updateData({
+        ...job.data,
+        stage: 'slice',
+        scadPath,
+        stlPath,
+        modelUrl,
+      });
     }
 
     // slice → G-code (이미 완료된 경우 건너뜀)
