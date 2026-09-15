@@ -1,14 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { PrinterService } from './application/printer.service';
-import { MoonrakerAdapter } from './infrastructure/moonraker.adapter';
+import { Printer } from './entities/printer.entity';
+import { PrinterAdapterFactory } from './infrastructure/printer-adapter.factory';
+import { PrinterController } from './printer.controller';
 
 @Module({
-  imports: [ConfigModule],
-  providers: [MoonrakerAdapter, PrinterService],
+  imports: [ConfigModule, TypeOrmModule.forFeature([Printer])],
+  controllers: [PrinterController],
+  providers: [PrinterAdapterFactory, PrinterService],
   exports: [PrinterService],
 })
-/**
- * 프린터 출력 기능(Moonraker 연동)을 구성하는 모듈.
- */
 export class PrinterModule {}
