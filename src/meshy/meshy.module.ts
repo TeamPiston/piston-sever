@@ -1,7 +1,14 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { FilesModule } from '../files/files.module';
+import { MeshyService } from './application/meshy.service';
+import { MeshyApiClient } from './infrastructure/meshy-api.client';
+import { MeshyController } from './meshy.controller';
 
-/**
- * Meshy 관련 기능을 위한 모듈 (현재 프로바이더/컨트롤러 미등록).
- */
-@Module({})
+@Module({
+  imports: [ConfigModule, FilesModule],
+  controllers: [MeshyController],
+  providers: [MeshyApiClient, MeshyService],
+  exports: [MeshyService],
+})
 export class MeshyModule {}
