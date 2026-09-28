@@ -9,9 +9,6 @@ RUN pnpm build
 RUN pnpm prune --prod
 
 FROM node:22-bookworm-slim AS production
-RUN apt-get update && \
-    apt-get install -y openscad cura-engine && \
-    rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
