@@ -12,4 +12,9 @@ export class PrinterService {
     const fileName = await this.moonraker.uploadGcode(gcodePath);
     await this.moonraker.startPrint(fileName);
   }
+
+  async cancel(): Promise<void> {
+    this.logger.log('출력 취소 요청');
+    await this.moonraker.cancelPrint();
+  }
 }

@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsString } from 'class-validator';
 
-export class GenerateRequestDto {
+export class CreatePrintTaskDto {
   @IsString()
   @IsNotEmpty()
-  prompt: string;
+  artworkName: string;
 }

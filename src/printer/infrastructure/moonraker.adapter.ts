@@ -34,6 +34,11 @@ export class MoonrakerAdapter {
     this.logger.log(`출력 시작: ${fileName}`);
   }
 
+  async cancelPrint(): Promise<void> {
+    await axios.post(`${this.getMoonrakerUrl()}/printer/print/cancel`);
+    this.logger.log('출력 취소 요청 전송');
+  }
+
   private getMoonrakerUrl(): string {
     if (!this.moonrakerUrl) {
       throw new Error('MOONRAKER_URL이 설정되지 않았습니다.');

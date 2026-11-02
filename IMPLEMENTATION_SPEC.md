@@ -2,22 +2,22 @@
 
 ## 결정 사항 요약
 
-| 항목                   | 결정                                                                  |
-| ---------------------- | --------------------------------------------------------------------- |
-| Queue 방식             | 단일 큐 + 단계별 Job (generate→slice→print)                           |
-| 실패 처리              | BullMQ `attempts: 3` 자동 재시도                                      |
-| 상태 조회              | `GET /3d/jobs/:jobId` (stage + status 반환)                           |
-| 파일 저장              | `OUTPUT_DIR` 환경변수 경로에 영구 보관                                |
-| 배포                   | Docker + docker-compose (Redis 포함)                                  |
-| OpenSCAD 경로          | `OPENSCAD_BIN` 환경변수 (Dockerfile에 설치, 로컬 맥에서 오버라이드)   |
-| CuraEngine 경로        | `CURA_BIN` 환경변수 (Dockerfile에 설치)                               |
-| CuraEngine 프로필      | Qidi Max 4 하드코딩 프로필 (`src/slicer/profiles/qidi_max4.def.json`) |
-| Moonraker              | `MOONRAKER_URL` 환경변수                                              |
-| 폴더 구조              | 모듈별 `domain/application/infrastructure` 분리                       |
-| openai 모듈            | OpenAI 클라이언트 Provider만 담당                                     |
-| Queue Worker           | `queue` 모듈 단일 Processor에 전체 파이프라인 집중                    |
-| API 컨트롤러           | `queue` 모듈에 배치                                                   |
-| HardcodedScadGenerator | prompt를 주석으로 포함한 20mm 큐브 반환                               |
+| 항목                   | 결정                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Queue 방식             | 단일 큐 + 단계별 Job (generate→slice→print)                                                                                                             |
+| 실패 처리              | BullMQ `attempts: 3` 자동 재시도                                                                                                                        |
+| 상태 조회              | `GET /api/prints/current` (사용자별 진행 중인 PrintTask 반환, [#19](https://github.com/TeamPiston/piston-sever/issues/19)로 `/3d/jobs/:jobId`에서 변경) |
+| 파일 저장              | `OUTPUT_DIR` 환경변수 경로에 영구 보관                                                                                                                  |
+| 배포                   | Docker + docker-compose (Redis 포함)                                                                                                                    |
+| OpenSCAD 경로          | `OPENSCAD_BIN` 환경변수 (Dockerfile에 설치, 로컬 맥에서 오버라이드)                                                                                     |
+| CuraEngine 경로        | `CURA_BIN` 환경변수 (Dockerfile에 설치)                                                                                                                 |
+| CuraEngine 프로필      | Qidi Max 4 하드코딩 프로필 (`src/slicer/profiles/qidi_max4.def.json`)                                                                                   |
+| Moonraker              | `MOONRAKER_URL` 환경변수                                                                                                                                |
+| 폴더 구조              | 모듈별 `domain/application/infrastructure` 분리                                                                                                         |
+| openai 모듈            | OpenAI 클라이언트 Provider만 담당                                                                                                                       |
+| Queue Worker           | `queue` 모듈 단일 Processor에 전체 파이프라인 집중                                                                                                      |
+| API 컨트롤러           | `queue` 모듈에 배치                                                                                                                                     |
+| HardcodedScadGenerator | prompt를 주석으로 포함한 20mm 큐브 반환                                                                                                                 |
 
 ---
 
@@ -88,7 +88,8 @@ src/
 │   │   └── queue.service.ts                  # Job 추가, 상태 조회
 │   ├── infrastructure/
 │   │   └── print-job.processor.ts            # BullMQ Processor (전체 파이프라인)
-│   ├── queue.controller.ts                   # POST /3d/generate, GET /3d/jobs/:jobId
+│   ├── entities/print-task.entity.ts         # PrintTask (DB 영속화)
+│   ├── print-tasks.controller.ts             # POST /api/prints, GET /api/prints/current, DELETE /api/prints/:id
 │   └── queue.module.ts
 │
 ├── app.module.ts
@@ -114,9 +115,10 @@ export const SCAD_GENERATOR_PORT = 'SCAD_GENERATOR_PORT';
 ```typescript
 // queue 내부에서 사용
 interface PrintJobData {
-  jobId: string;
+  printTaskId: number;
+  userId: string;
   prompt: string;
-  stage: 'generate' | 'slice' | 'print';
+  stage: 'generate' | 'slice' | 'print' | 'printing' | 'done';
   scadPath?: string;
   stlPath?: string;
   gcodePath?: string;
@@ -125,22 +127,38 @@ interface PrintJobData {
 
 ### API 요청/응답
 
+> [#19](https://github.com/TeamPiston/piston-sever/issues/19): `piston-web-client`가 기대하는 계약에 맞춰 `/3d/*`에서 `/api/prints*`로 변경.
+
 ```typescript
-// POST /3d/generate
+// POST /api/prints (인증 필요, userId는 액세스 토큰에서 추출)
 // Request
-{ prompt: string }
-
-// Response
-{ jobId: string; status: 'queued' }
-
-// GET /3d/jobs/:jobId
-// Response
 {
-  jobId: string;
-  status: 'active' | 'completed' | 'failed' | 'waiting';
-  stage: 'generate' | 'slice' | 'print';
-  failedReason?: string;
+  artworkName: string;
 }
+
+// Response: PrintTask
+{
+  id: number;
+  userId: string;
+  artworkName: string;
+  modelUrl: string | null;
+  printerName: string | null;
+  printingMethod: string | null;
+  filamentRemaining: string | null;
+  failureReason: string | null;
+  stoppedAt: string | null;
+  status: 'PRINTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  progress: number;
+  remainingMinutes: number;
+  estimatedEndTime: string;
+  createdAt: string;
+}
+
+// GET /api/prints/current
+// Response: PrintTask | null (현재 사용자의 진행 중(PRINTING)인 작업 1건)
+
+// DELETE /api/prints/:id
+// Response: 204 No Content (본인 소유의 진행 중인 작업만 취소 가능)
 ```
 
 ---
@@ -148,24 +166,33 @@ interface PrintJobData {
 ## 파이프라인 흐름
 
 ```
-POST /3d/generate
-  └─ QueueService.addJob(prompt)
-       └─ BullMQ Queue에 Job 추가 (stage: 'generate')
+POST /api/prints
+  └─ QueueService.createPrintTask(userId, artworkName)
+       └─ PrintTask DB row 생성 (status: 'PRINTING')
+       └─ BullMQ Queue에 Job 추가 (jobId = printTaskId, stage: 'generate')
 
 PrintJobProcessor.process(job)
   ├─ stage === 'generate'
-  │    └─ OpenscadService.generateScad(prompt) → {jobId}.scad
-  │    └─ OpenscadService.convertToStl({jobId}.scad) → {jobId}.stl
-  │    └─ job.updateData({ stage: 'slice', stlPath })
-  │    └─ 재귀 처리 (또는 동일 Job에서 다음 단계 실행)
+  │    └─ OpenscadService.generateScad(prompt) → {printTaskId}.scad
+  │    └─ OpenscadService.convertToStl({printTaskId}.scad) → {printTaskId}.stl
+  │    └─ job.updateData({ stage: 'slice', stlPath }) + PrintTask.progress 갱신
   │
   ├─ stage === 'slice'
-  │    └─ SlicerService.slice({jobId}.stl) → {jobId}.gcode
-  │    └─ job.updateData({ stage: 'print', gcodePath })
+  │    └─ SlicerService.slice({printTaskId}.stl) → {printTaskId}.gcode
+  │    └─ job.updateData({ stage: 'print', gcodePath }) + PrintTask.progress 갱신
   │
-  └─ stage === 'print'
-       └─ PrinterService.print({jobId}.gcode)
-       └─ 완료
+  └─ stage === 'print' | 'printing'
+       └─ PrinterService.print({printTaskId}.gcode)
+       └─ job.updateData({ stage: 'done' })
+
+PrintJobProcessor (@OnWorkerEvent)
+  ├─ 'completed' → PrintTask.status = 'COMPLETED'
+  └─ 'failed'    → PrintTask.status = 'FAILED', failureReason 기록
+
+DELETE /api/prints/:id
+  └─ QueueService.cancelPrintTask(userId, printTaskId)
+       └─ 대기 중 Job이면 제거, 이미 출력 중이면 PrinterService.cancel() 호출
+       └─ PrintTask.status = 'CANCELLED'
 ```
 
 > 단일 Processor에서 stage를 switch로 분기하여 순차 처리.
