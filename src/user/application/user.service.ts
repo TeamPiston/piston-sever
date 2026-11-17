@@ -33,4 +33,8 @@ export class UserService {
     const user = this.userRepository.create({ ...data, verified: true });
     return this.userRepository.save(user);
   }
+
+  async updatePassword(userId: string, hashedPassword: string): Promise<void> {
+    await this.userRepository.update(userId, { password: hashedPassword });
+  }
 }

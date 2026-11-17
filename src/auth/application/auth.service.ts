@@ -83,7 +83,7 @@ export class AuthService {
       await this.userService.create({
         loginId: dto.id,
         email,
-        password: dto.password,
+        password: await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS),
       });
     } catch (error) {
       if (isDuplicateEntryError(error)) {
@@ -111,7 +111,12 @@ export class AuthService {
       throw new NotFoundException('가입된 계정이 없습니다.');
     }
 
-    await this.mailService.sendPasswordRecovery(email, user.password);
+    const tempPassword = randomUUID().replace(/-/g, '').slice(0, 12);
+    await this.userService.updatePassword(
+      user.userId,
+      await bcrypt.hash(tempPassword, BCRYPT_SALT_ROUNDS),
+    );
+    await this.mailService.sendPasswordRecovery(email, tempPassword);
   }
 
   async login(
@@ -124,7 +129,7 @@ export class AuthService {
       );
     }
 
-    if (dto.password !== user.password) {
+    if (!(await bcrypt.compare(dto.password, user.password))) {
       throw new UnauthorizedException(
         '아이디 또는 비밀번호가 올바르지 않습니다.',
       );
