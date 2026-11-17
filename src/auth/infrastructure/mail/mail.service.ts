@@ -2,11 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createTransport, Transporter } from 'nodemailer';
 
+/**
+ * SMTP를 통해 인증코드, 아이디/비밀번호 찾기 메일을 발송하는 서비스.
+ */
 @Injectable()
 export class MailService {
   private readonly transporter: Transporter;
   private readonly from: string;
 
+  /**
+   * `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` 환경변수로 nodemailer
+   * 트랜스포터를 초기화한다. 포트가 465이면 SMTPS(secure)로 연결한다.
+   */
   constructor(private readonly configService: ConfigService) {
     this.from = this.configService.get<string>('SMTP_USER', '');
     const port = Number(this.configService.get<string>('SMTP_PORT'));
@@ -21,6 +28,9 @@ export class MailService {
     });
   }
 
+  /**
+   * 이메일 인증코드를 담은 메일을 발송한다.
+   */
   async sendVerificationCode(email: string, code: string): Promise<void> {
     await this.transporter.sendMail({
       from: this.from,
@@ -35,6 +45,9 @@ export class MailService {
     });
   }
 
+  /**
+   * 가입 시 사용한 로그인 아이디를 안내하는 메일을 발송한다.
+   */
   async sendIdRecovery(email: string, loginId: string): Promise<void> {
     await this.transporter.sendMail({
       from: this.from,
@@ -49,6 +62,9 @@ export class MailService {
     });
   }
 
+  /**
+   * 임시/조회된 비밀번호를 안내하는 메일을 발송한다.
+   */
   async sendPasswordRecovery(email: string, password: string): Promise<void> {
     await this.transporter.sendMail({
       from: this.from,
@@ -63,6 +79,10 @@ export class MailService {
     });
   }
 
+  /**
+   * 인증코드/아이디/비밀번호 안내 메일에 공통으로 사용하는 "업적 달성" 스타일의
+   * HTML 본문을 생성한다.
+   */
   private buildAchievementHtml({
     subtitle,
     value,

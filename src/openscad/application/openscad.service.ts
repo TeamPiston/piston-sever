@@ -10,6 +10,9 @@ import type { ScadGeneratorPort } from '../domain/ports/scad-generator.port';
 
 const execAsync = promisify(exec);
 
+/**
+ * 프롬프트로부터 OpenSCAD(.scad) 파일을 생성하고 이를 STL로 변환하는 서비스.
+ */
 @Injectable()
 export class OpenscadService {
   private readonly logger = new Logger(OpenscadService.name);
@@ -20,6 +23,10 @@ export class OpenscadService {
     private readonly filesService: FilesService,
   ) {}
 
+  /**
+   * ScadGeneratorPort로 프롬프트를 변환해 얻은 SCAD 코드를
+   * `{jobId}.scad` 파일로 출력 디렉터리에 저장하고 파일 경로를 반환한다.
+   */
   async generateScad(prompt: string, jobId: string): Promise<string> {
     const scadContent = await this.generator.generate(prompt);
     const outputDir = await this.filesService.resolveOutputDir();
@@ -29,6 +36,10 @@ export class OpenscadService {
     return scadPath;
   }
 
+  /**
+   * OPENSCAD_BIN(기본 '/usr/bin/openscad') 실행 파일로 주어진 .scad 파일을
+   * `{jobId}.stl`로 변환하고 생성된 STL 파일 경로를 반환한다.
+   */
   async convertToStl(scadPath: string, jobId: string): Promise<string> {
     const outputDir = await this.filesService.resolveOutputDir();
     const stlPath = path.join(outputDir, `${jobId}.stl`);

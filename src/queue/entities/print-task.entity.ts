@@ -12,8 +12,12 @@ export class PrintTask {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'user_id', type: 'bigint', unsigned: true })
+  @Column({ name: 'user_id', type: 'bigint' })
   userId: string;
+
+  /** 이 작업을 처리하는 BullMQ job의 id (취소 시 조회용, uuid). */
+  @Column({ name: 'job_id', type: 'uuid', nullable: true })
+  jobId: string | null;
 
   @Column({ name: 'artwork_name', type: 'varchar', length: 255 })
   artworkName: string;
@@ -55,7 +59,7 @@ export class PrintTask {
 
   @Column({
     name: 'stopped_at',
-    type: 'datetime',
+    type: 'timestamp',
     precision: 3,
     nullable: true,
   })
@@ -80,7 +84,7 @@ export class PrintTask {
 
   @CreateDateColumn({
     name: 'created_at',
-    type: 'datetime',
+    type: 'timestamp',
     precision: 3,
     default: () => 'CURRENT_TIMESTAMP(3)',
   })

@@ -18,11 +18,15 @@ export class PrintTasksController {
   constructor(private readonly queueService: QueueService) {}
 
   @Post()
-  create(
+  async create(
     @CurrentUser() user: { userId: string },
     @Body() dto: CreatePrintTaskDto,
   ) {
-    return this.queueService.createPrintTask(user.userId, dto.artworkName);
+    const { printTask } = await this.queueService.createPrintTask(
+      user.userId,
+      dto.artworkName,
+    );
+    return printTask;
   }
 
   @Get('current')

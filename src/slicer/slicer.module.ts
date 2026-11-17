@@ -9,4 +9,7 @@ import { CuraEngineAdapter } from './infrastructure/cura-engine.adapter';
   providers: [CuraEngineAdapter, SlicerService],
   exports: [SlicerService],
 })
+/**
+ * CuraEngineAdapter와 SlicerService를 등록하고 SlicerService를 외부로 공개하는 모듈.
+ */
 export class SlicerModule {}
