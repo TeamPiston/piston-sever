@@ -97,7 +97,7 @@ export class AuthService {
       await this.userService.create({
         loginId: dto.id,
         email,
-        password: dto.password,
+        password: await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS),
       });
     } catch (error) {
       if (isDuplicateEntryError(error)) {
@@ -123,7 +123,8 @@ export class AuthService {
   }
 
   /**
-   * 이메일로 가입된 계정을 조회해 비밀번호를 메일로 안내한다.
+   * 이메일로 가입된 계정을 조회해 임시 비밀번호를 발급하고 메일로 안내한다.
+   * 비밀번호는 해시로만 저장되어 원문을 조회할 수 없으므로, 임시 비밀번호로 교체한다.
    * 계정이 없으면 `NotFoundException`을 던진다.
    */
   async findPassword(rawEmail: string): Promise<void> {
@@ -133,7 +134,12 @@ export class AuthService {
       throw new NotFoundException('가입된 계정이 없습니다.');
     }
 
-    await this.mailService.sendPasswordRecovery(email, user.password);
+    const tempPassword = randomUUID().replace(/-/g, '').slice(0, 12);
+    await this.userService.updatePassword(
+      user.userId,
+      await bcrypt.hash(tempPassword, BCRYPT_SALT_ROUNDS),
+    );
+    await this.mailService.sendPasswordRecovery(email, tempPassword);
   }
 
   /**
@@ -150,7 +156,7 @@ export class AuthService {
       );
     }
 
-    if (dto.password !== user.password) {
+    if (!(await bcrypt.compare(dto.password, user.password))) {
       throw new UnauthorizedException(
         '아이디 또는 비밀번호가 올바르지 않습니다.',
       );

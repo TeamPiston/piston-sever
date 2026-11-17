@@ -51,4 +51,11 @@ export class UserService {
     const user = this.userRepository.create({ ...data, verified: true });
     return this.userRepository.save(user);
   }
+
+  /**
+   * 해당 사용자의 비밀번호(해시)를 교체한다.
+   */
+  async updatePassword(userId: string, hashedPassword: string): Promise<void> {
+    await this.userRepository.update(userId, { password: hashedPassword });
+  }
 }
