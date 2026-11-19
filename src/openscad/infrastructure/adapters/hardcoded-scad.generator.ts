@@ -7,7 +7,7 @@ export class HardcodedScadGenerator implements ScadGeneratorPort {
   /**
    * 프롬프트 내용과 무관하게 20x20x20 큐브를 그리는 고정 SCAD 코드를 반환한다.
    */
-  async generate(prompt: string): Promise<string> {
-    return `// prompt: ${prompt}\ncube([20, 20, 20]);`;
+  generate(prompt: string): Promise<string> {
+    return Promise.resolve(`// prompt: ${prompt}\ncube([20, 20, 20]);`);
   }
 }
