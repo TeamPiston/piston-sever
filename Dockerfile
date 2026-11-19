@@ -8,34 +8,40 @@
 ########################################
 FROM debian:bookworm AS cura-builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential cmake ninja-build git \
+RUN apt-get -o Acquire::ForceIPv4=true -o Acquire::http::Pipeline-Depth=0 update && apt-get install -y --no-install-recommends \
+        build-essential ninja-build git \
         python3 python3-pip python3-venv \
         pkg-config ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --break-system-packages --no-cache-dir "conan==2.7.0"
+# CuraEngine(main)이 요구하는 conan>=2.7.0 및 cmake>=3.26 (bookworm의 apt cmake는 3.25로 너무 낮음)
+RUN pip3 install --break-system-packages --no-cache-dir "conan>=2.7.0,<3.0.0" "cmake>=3.26"
 
 # CuraEngine 릴리즈 태그 확인: https://github.com/Ultimaker/CuraEngine/tags
-ARG CURAENGINE_VERSION=5.7.0
+ARG CURAENGINE_VERSION=5.14.0
 WORKDIR /build/CuraEngine
 
-RUN git clone --branch "${CURAENGINE_VERSION}" --depth 1 \
-        https://github.com/Ultimaker/CuraEngine.git . \
+# conan 캐시(/root/.conan2)가 이 서버의 BuildKit 드라이버에서 RUN 간에 제대로
+# 공유되지 않아, 프로필 설정부터 바이너리의 공유 라이브러리 수집까지 전부
+# 같은 RUN(=같은 마운트 수명) 안에서 끝낸다.
+RUN --mount=type=cache,target=/root/.conan2 \
+    conan config install https://github.com/ultimaker/conan-config.git \
     && conan profile detect --force \
+    && git clone --branch "${CURAENGINE_VERSION}" --depth 1 \
+        https://github.com/Ultimaker/CuraEngine.git . \
     && conan install . --build=missing --update \
         -c tools.build:skip_test=True -s build_type=Release \
-    && cmake --preset release \
-    && cmake --build --preset release
-
-# 빌드된 바이너리와 그 바이너리가 동적 링크하는 공유 라이브러리를
-# 별도 디렉토리로 모아 런타임 스테이지에서 그대로 복사할 수 있게 한다.
-RUN mkdir -p /cura-runtime/bin /cura-runtime/lib \
+        -c "tools.build:cxxflags=['-include', 'optional', '-include', 'iomanip']" \
+    && cmake --preset conan-release \
+    && cmake --build --preset conan-release \
+    && mkdir -p /cura-runtime/bin /cura-runtime/lib \
     && BIN=$(find /build/CuraEngine -maxdepth 5 -type f -name CuraEngine | head -n1) \
     && cp "$BIN" /cura-runtime/bin/CuraEngine \
+    && . /build/CuraEngine/build/Release/generators/conanrun.sh \
     && ldd /cura-runtime/bin/CuraEngine \
         | awk '{print $3}' | grep '^/' \
-        | xargs -I{} cp -L --parents {} /cura-runtime/lib/ 2>/dev/null || true
+        | sort -u \
+        | xargs -I{} cp -L -t /cura-runtime/lib/ {}
 
 # CuraEngine 실행에 필요한 definitions/quality 리소스
 RUN git clone --depth 1 --filter=blob:none --sparse \
@@ -60,7 +66,7 @@ RUN pnpm prune --prod
 ########################################
 FROM node:20-bookworm-slim AS production
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::ForceIPv4=true -o Acquire::http::Pipeline-Depth=0 update && apt-get install -y --no-install-recommends \
         openscad \
     && rm -rf /var/lib/apt/lists/*
 
@@ -72,7 +78,7 @@ COPY --from=node-builder /app/package.json ./
 COPY src/slicer/profiles ./profiles
 
 COPY --from=cura-builder /cura-runtime/bin/CuraEngine /usr/bin/CuraEngine
-COPY --from=cura-builder /cura-runtime/lib/ /
+COPY --from=cura-builder /cura-runtime/lib/ /usr/lib/
 COPY --from=cura-builder /cura-resources/resources /usr/share/cura-engine/resources
 
 RUN mkdir -p ./output \
