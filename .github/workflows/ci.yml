@@ -54,9 +54,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # pnpm 11.x는 Node 22.13+가 필요해서, 운영 이미지(Node 20)와 같은 조합인 pnpm 12로 고정
       - uses: pnpm/action-setup@v4
         with:
-          version: 11
+          version: 12.21.0
 
       - uses: actions/setup-node@v4
         with:
