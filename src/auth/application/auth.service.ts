@@ -183,6 +183,19 @@ export class AuthService {
     await this.redis.del(refreshTokenKey(userId, sessionId));
   }
 
+  /**
+   * 해당 사용자의 모든 세션 리프레시 토큰을 Redis에서 삭제한다.
+   */
+  async revokeAllSessions(userId: string): Promise<void> {
+    const stream = this.redis.scanStream({
+      match: refreshTokenKey(userId, '*'),
+      count: 100,
+    });
+    for await (const keys of stream as AsyncIterable<string[]>) {
+      if (keys.length > 0) await this.redis.del(...keys);
+    }
+  }
+
   private async issueTokens(
     payload: JwtPayload,
   ): Promise<{ accessToken: string; refreshToken: string }> {

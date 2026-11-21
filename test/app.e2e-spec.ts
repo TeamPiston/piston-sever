@@ -16,11 +16,8 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+  it('/ (GET) 은 전역 액세스 토큰 가드로 보호된다', () => {
+    return request(app.getHttpServer()).get('/').expect(401);
   });
 
   afterEach(async () => {

@@ -44,6 +44,6 @@ import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AccessTokenGuard },
   ],
-  exports: [AccessTokenGuard],
+  exports: [AccessTokenGuard, AuthService],
 })
 export class AuthModule {}

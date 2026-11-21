@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
+import type { BucketItem } from 'minio';
 import { Client } from 'minio';
 import { MINIO_CLIENT } from '../infrastructure/minio-client.provider';
 
@@ -69,6 +70,34 @@ export class FilesService implements OnModuleInit {
     );
     await this.minioClient.fPutObject(bucket, key, filePath);
     return this.buildPublicUrl(bucket, key);
+  }
+
+  /**
+   * 지정한 key들의 오브젝트를 MinIO에서 삭제한다. 존재하지 않는 key는 무시된다.
+   */
+  async removeObjects(keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+    const bucket = this.configService.get<string>(
+      'MINIO_BUCKET',
+      'piston-files',
+    );
+    await this.minioClient.removeObjects(bucket, keys);
+  }
+
+  /**
+   * prefix로 시작하는 모든 오브젝트를 MinIO에서 삭제한다.
+   */
+  async removeByPrefix(prefix: string): Promise<void> {
+    const bucket = this.configService.get<string>(
+      'MINIO_BUCKET',
+      'piston-files',
+    );
+    const keys: string[] = [];
+    const stream = this.minioClient.listObjectsV2(bucket, prefix, true);
+    for await (const item of stream as AsyncIterable<BucketItem>) {
+      if (item.name) keys.push(item.name);
+    }
+    await this.removeObjects(keys);
   }
 
   private buildPublicUrl(bucket: string, key: string): string {
