@@ -13,6 +13,13 @@ export class UserService {
   ) {}
 
   /**
+   * 사용자 고유 식별자로 사용자를 조회한다. 없으면 null을 반환한다.
+   */
+  findById(userId: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { userId } });
+  }
+
+  /**
    * 로그인 아이디로 사용자를 조회한다. 없으면 null을 반환한다.
    */
   findByLoginId(loginId: string): Promise<User | null> {
