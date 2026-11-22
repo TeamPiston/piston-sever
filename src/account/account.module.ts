@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { FilesModule } from '../files/files.module';
 import { QueueModule } from '../queue/queue.module';
+import { UserModule } from '../user/user.module';
 import { AccountController } from './account.controller';
 import { AccountService } from './application/account.service';
 
@@ -10,7 +11,7 @@ import { AccountService } from './application/account.service';
  * UserModule은 AuthModule에 의존하므로 순환을 피하기 위해 별도 모듈로 둔다.
  */
 @Module({
-  imports: [AuthModule, QueueModule, FilesModule],
+  imports: [AuthModule, UserModule, QueueModule, FilesModule],
   controllers: [AccountController],
   providers: [AccountService],
 })
