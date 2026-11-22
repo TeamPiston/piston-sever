@@ -74,7 +74,10 @@ describe('Meshy 비동기 생성 API (e2e, Meshy 호출 없음)', () => {
     const queue = app.get<Queue>(getQueueToken(MESHY_GENERATION_QUEUE));
     const redis = await queue.client;
     expect(await redis.get(`meshy-active:${userId}`)).toBeNull();
-    expect(await queue.getJobCounts('waiting', 'active', 'delayed')).toEqual({
+    // BullMQ는 waiting을 요청하면 paused 개수도 함께 돌려주므로 필요한 필드만 비교한다.
+    expect(
+      await queue.getJobCounts('waiting', 'active', 'delayed'),
+    ).toMatchObject({
       waiting: 0,
       active: 0,
       delayed: 0,
