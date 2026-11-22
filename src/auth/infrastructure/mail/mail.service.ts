@@ -63,18 +63,33 @@ export class MailService {
   }
 
   /**
-   * 임시/조회된 비밀번호를 안내하는 메일을 발송한다.
+   * 비밀번호 재설정 코드(와 설정돼 있으면 재설정 링크)를 안내하는 메일을 발송한다.
    */
-  async sendPasswordRecovery(email: string, password: string): Promise<void> {
+  async sendPasswordReset(
+    email: string,
+    token: string,
+    resetUrl: string | null,
+  ): Promise<void> {
+    const link = resetUrl
+      ? `${resetUrl}${resetUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+      : null;
     await this.transporter.sendMail({
       from: this.from,
       to: email,
-      subject: '[Piston] 비밀번호 찾기',
-      text: `회원님의 비밀번호: ${password}`,
+      subject: '[Piston] 비밀번호 재설정',
+      text: [
+        `비밀번호 재설정 코드: ${token}`,
+        link ? `재설정 링크: ${link}` : null,
+        '30분 이내에 한 번만 사용할 수 있습니다.',
+        '본인이 요청하지 않았다면 이 메일을 무시해주세요. 기존 비밀번호는 바뀌지 않습니다.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
       html: this.buildAchievementHtml({
-        subtitle: 'Find Password',
-        value: password,
-        footer: '본인이 요청하지 않았다면 이 이메일을 무시해주세요.',
+        subtitle: 'Reset Password',
+        value: token,
+        footer:
+          '30분 이내에 한 번만 사용할 수 있습니다. 본인이 요청하지 않았다면 무시해주세요. 기존 비밀번호는 바뀌지 않습니다.',
       }),
     });
   }

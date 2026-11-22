@@ -7,6 +7,7 @@ import { FindIdDto } from './dto/find-id.dto';
 import { FindPasswordDto } from './dto/find-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SendCodeDto } from './dto/send-code.dto';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 
@@ -48,7 +49,8 @@ export class AuthController {
   }
 
   /**
-   * 가입된 이메일로 아이디를 조회하여 메일로 안내한다(`POST /find-id`, 1분당 3회 제한).
+   * 가입된 이메일이면 아이디를 메일로 안내한다(`POST /find-id`, 1분당 3회 제한).
+   * 가입 여부와 관계없이 항상 204를 반환한다.
    */
   @Post('find-id')
   @Throttle({ default: { limit: 3, ttl: 60000 } })
@@ -58,13 +60,24 @@ export class AuthController {
   }
 
   /**
-   * 가입된 이메일로 비밀번호를 조회하여 메일로 안내한다(`POST /find-password`, 1분당 3회 제한).
+   * 가입된 이메일이면 비밀번호 재설정 코드를 메일로 보낸다(`POST /find-password`, 1분당 3회 제한).
+   * 기존 비밀번호는 바뀌지 않으며, 가입 여부와 관계없이 항상 204를 반환한다.
    */
   @Post('find-password')
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   @HttpCode(204)
   async findPassword(@Body() dto: FindPasswordDto): Promise<void> {
     await this.authService.findPassword(dto.email);
+  }
+
+  /**
+   * 메일로 받은 재설정 코드로 비밀번호를 바꾸고 모든 세션을 폐기한다(`POST /reset-password`, 1분당 5회 제한).
+   */
+  @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(204)
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
+    await this.authService.resetPassword(dto.token, dto.newPassword);
   }
 
   /**

@@ -1,13 +1,15 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
-  NotFoundException,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { randomInt, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomInt, randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import { QueryFailedError } from 'typeorm';
 import { UserService } from '../../user/application/user.service';
@@ -19,6 +21,8 @@ import {
   JWT_REFRESH_SECRET,
 } from '../infrastructure/jwt/jwt-secrets.provider';
 import {
+  passwordResetKey,
+  passwordResetUserKey,
   refreshTokenKey,
   verificationCodeKey,
 } from '../infrastructure/redis/redis-keys';
@@ -26,6 +30,7 @@ import { REDIS_CLIENT } from '../infrastructure/redis/redis.provider';
 import { JwtPayload } from '../types/jwt-payload.interface';
 
 const VERIFICATION_CODE_TTL_SECONDS = 5 * 60;
+const PASSWORD_RESET_TTL_SECONDS = 30 * 60;
 const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 const ACCESS_TOKEN_EXPIRES_IN = '15m';
 const REFRESH_TOKEN_EXPIRES_IN = '7d';
@@ -37,10 +42,13 @@ const BCRYPT_SALT_ROUNDS = 10;
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
+    private readonly configService: ConfigService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Inject(JWT_ACCESS_SECRET) private readonly accessTokenSecret: string,
     @Inject(JWT_REFRESH_SECRET) private readonly refreshTokenSecret: string,
@@ -109,37 +117,84 @@ export class AuthService {
   }
 
   /**
-   * 이메일로 가입된 계정을 조회해 아이디를 메일로 안내한다.
-   * 계정이 없으면 `NotFoundException`을 던진다.
+   * 이메일로 가입된 계정이 있으면 아이디를 메일로 안내한다.
+   * 가입 여부가 드러나지 않도록 계정이 없어도 정상 종료하고, 메일은 응답을 기다리지 않고 보낸다.
    */
   async findId(rawEmail: string): Promise<void> {
     const email = normalizeEmail(rawEmail);
     const user = await this.userService.findByEmail(email);
-    if (!user) {
-      throw new NotFoundException('가입된 계정이 없습니다.');
-    }
+    if (!user) return;
 
-    await this.mailService.sendIdRecovery(email, user.loginId);
+    this.sendInBackground('아이디 찾기', () =>
+      this.mailService.sendIdRecovery(email, user.loginId),
+    );
   }
 
   /**
-   * 이메일로 가입된 계정을 조회해 임시 비밀번호를 발급하고 메일로 안내한다.
-   * 비밀번호는 해시로만 저장되어 원문을 조회할 수 없으므로, 임시 비밀번호로 교체한다.
-   * 계정이 없으면 `NotFoundException`을 던진다.
+   * 이메일로 가입된 계정이 있으면 일회용 비밀번호 재설정 토큰을 발급해 메일로 보낸다.
+   * 기존 비밀번호는 바꾸지 않으며, 새 요청이 오면 이전 토큰은 무효가 된다.
+   * 가입 여부가 드러나지 않도록 계정이 없어도 정상 종료한다.
    */
   async findPassword(rawEmail: string): Promise<void> {
     const email = normalizeEmail(rawEmail);
     const user = await this.userService.findByEmail(email);
-    if (!user) {
-      throw new NotFoundException('가입된 계정이 없습니다.');
+    if (!user) return;
+
+    const token = randomBytes(24).toString('base64url');
+    const tokenHash = hashResetToken(token);
+    const previousHash = await this.redis.get(
+      passwordResetUserKey(user.userId),
+    );
+    const tx = this.redis.multi();
+    if (previousHash) tx.del(passwordResetKey(previousHash));
+    tx.set(
+      passwordResetKey(tokenHash),
+      user.userId,
+      'EX',
+      PASSWORD_RESET_TTL_SECONDS,
+    );
+    tx.set(
+      passwordResetUserKey(user.userId),
+      tokenHash,
+      'EX',
+      PASSWORD_RESET_TTL_SECONDS,
+    );
+    await tx.exec();
+
+    const resetUrl =
+      this.configService.get<string>('PASSWORD_RESET_URL') || null;
+    this.sendInBackground('비밀번호 재설정', () =>
+      this.mailService.sendPasswordReset(email, token, resetUrl),
+    );
+  }
+
+  /**
+   * 재설정 토큰을 한 번만 사용해 비밀번호를 바꾸고, 해당 사용자의 모든 세션을 폐기한다.
+   * 토큰이 없거나 만료·사용됐으면 `BadRequestException`을 던진다.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    // GETDEL로 꺼내는 동시에 지워 같은 토큰의 동시·재사용을 막는다.
+    const userId = await this.redis.getdel(
+      passwordResetKey(hashResetToken(token)),
+    );
+    if (!userId) {
+      throw new BadRequestException(
+        '재설정 코드가 올바르지 않거나 만료되었습니다.',
+      );
     }
 
-    const tempPassword = randomUUID().replace(/-/g, '').slice(0, 12);
     await this.userService.updatePassword(
-      user.userId,
-      await bcrypt.hash(tempPassword, BCRYPT_SALT_ROUNDS),
+      userId,
+      await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS),
     );
-    await this.mailService.sendPasswordRecovery(email, tempPassword);
+    await this.redis.del(passwordResetUserKey(userId));
+    await this.revokeAllSessions(userId);
+  }
+
+  private sendInBackground(label: string, send: () => Promise<void>): void {
+    send().catch((error: unknown) =>
+      this.logger.error(`${label} 메일 발송 실패`, error),
+    );
   }
 
   /**
@@ -231,6 +286,11 @@ export class AuthService {
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+/** Redis가 유출돼도 토큰을 쓸 수 없도록 원문 대신 해시를 키로 저장한다. */
+function hashResetToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
 }
 
 function isDuplicateEntryError(error: unknown): boolean {
