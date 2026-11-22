@@ -35,6 +35,15 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      # e2e에서 보낸 메일을 외부로 내보내지 않고 받아 API로 조회하기 위한 SMTP 캡처 서버
+      mailpit:
+        image: axllent/mailpit:latest
+        env:
+          MP_SMTP_AUTH_ACCEPT_ANY: 1
+          MP_SMTP_AUTH_ALLOW_INSECURE: 1
+        ports:
+          - 1025:1025
+          - 8025:8025
 
     env:
       DB_HOST: localhost
@@ -50,6 +59,11 @@ jobs:
       MINIO_BUCKET: piston-files
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
+      SMTP_HOST: localhost
+      SMTP_PORT: 1025
+      SMTP_USER: noreply@piston.test
+      SMTP_PASS: ci-smtp
+      MAILPIT_URL: http://localhost:8025
 
     steps:
       - uses: actions/checkout@v4

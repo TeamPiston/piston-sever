@@ -155,10 +155,17 @@ interface PrintJobData {
 }
 
 // GET /api/prints/current
-// Response: PrintTask | null (현재 사용자의 진행 중(PRINTING)인 작업 1건)
+// Response: 200 application/json, PrintTask | null (현재 사용자의 진행 중(PRINTING)인 작업 1건, 없으면 본문 `null`)
 
 // DELETE /api/prints/:id
 // Response: 204 No Content (본인 소유의 진행 중인 작업만 취소 가능)
+
+// GET /api/users/me
+// Response: { userId: string; loginId: string; email: string; createdAt: string }
+// 계정이 삭제된 경우(토큰은 아직 유효) 401
+
+// DELETE /api/users/me
+// Response: 204 No Content (진행 중 출력 취소, 모든 세션 폐기, 사용자 데이터·업로드 파일 삭제)
 ```
 
 ---
