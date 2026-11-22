@@ -10,6 +10,7 @@ import {
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PrinterService } from './application/printer.service';
 import { CreatePrinterDto } from './dto/create-printer.dto';
+import { PrinterResponse, toPrinterResponse } from './dto/printer-response.dto';
 import { UpdatePrinterDto } from './dto/update-printer.dto';
 
 @Controller('printer')
@@ -17,30 +18,42 @@ export class PrinterController {
   constructor(private readonly printerService: PrinterService) {}
 
   @Post()
-  create(
+  async create(
     @CurrentUser() user: { userId: string },
     @Body() dto: CreatePrinterDto,
-  ) {
-    return this.printerService.register(user.userId, dto);
+  ): Promise<PrinterResponse> {
+    return toPrinterResponse(
+      await this.printerService.register(user.userId, dto),
+    );
   }
 
   @Get()
-  findAll(@CurrentUser() user: { userId: string }) {
-    return this.printerService.findAllByUser(user.userId);
+  async findAll(
+    @CurrentUser() user: { userId: string },
+  ): Promise<PrinterResponse[]> {
+    const printers = await this.printerService.findAllByUser(user.userId);
+    return printers.map(toPrinterResponse);
   }
 
   @Get(':id')
-  findOne(@CurrentUser() user: { userId: string }, @Param('id') id: string) {
-    return this.printerService.findOneOwned(user.userId, id);
+  async findOne(
+    @CurrentUser() user: { userId: string },
+    @Param('id') id: string,
+  ): Promise<PrinterResponse> {
+    return toPrinterResponse(
+      await this.printerService.findOneOwned(user.userId, id),
+    );
   }
 
   @Patch(':id')
-  update(
+  async update(
     @CurrentUser() user: { userId: string },
     @Param('id') id: string,
     @Body() dto: UpdatePrinterDto,
-  ) {
-    return this.printerService.update(user.userId, id, dto);
+  ): Promise<PrinterResponse> {
+    return toPrinterResponse(
+      await this.printerService.update(user.userId, id, dto),
+    );
   }
 
   @Delete(':id')

@@ -59,7 +59,11 @@ export class PrinterService {
     dto: UpdatePrinterDto,
   ): Promise<Printer> {
     const printer = await this.findOneOwned(userId, printerId);
-    Object.assign(printer, dto);
+    // 생략한 필드는 DTO에 undefined로 들어오므로 제외해 기존 값을 유지한다(null은 값 삭제).
+    const changes = Object.fromEntries(
+      Object.entries(dto).filter(([, value]) => value !== undefined),
+    );
+    Object.assign(printer, changes);
     return this.printerRepository.save(printer);
   }
 
