@@ -293,9 +293,10 @@ function hashResetToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-function isDuplicateEntryError(error: unknown): boolean {
+/** PostgreSQL unique 제약 위반(SQLSTATE 23505)인지 판별한다. */
+export function isDuplicateEntryError(error: unknown): boolean {
   return (
     error instanceof QueryFailedError &&
-    (error as unknown as { code?: string }).code === 'ER_DUP_ENTRY'
+    (error as unknown as { code?: string }).code === '23505'
   );
 }
