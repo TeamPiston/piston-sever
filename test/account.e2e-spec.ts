@@ -7,6 +7,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { resolveCorsOrigin } from '../src/cors-origin';
 import { REDIS_CLIENT } from '../src/auth/infrastructure/redis/redis.provider';
 import { ChatMessage } from '../src/chat/entities/chat-message.entity';
 import { FilesService } from '../src/files/application/files.service';
@@ -18,7 +19,7 @@ import { User } from '../src/user/entities/user.entity';
 const PASSWORD = 'e2e-password-1234';
 const BUCKET = process.env.MINIO_BUCKET ?? 'piston-files';
 
-describe('DELETE /api/users/me (e2e)', () => {
+describe('계정·프런트 연동 계약 (e2e)', () => {
   let app: INestApplication<App>;
   let dataSource: DataSource;
   let redis: Redis;
@@ -30,6 +31,7 @@ describe('DELETE /api/users/me (e2e)', () => {
       imports: [AppModule],
     }).compile();
     app = moduleFixture.createNestApplication();
+    app.enableCors({ origin: resolveCorsOrigin(process.env.CORS_ORIGIN) });
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, transform: true }),
     );
@@ -46,14 +48,23 @@ describe('DELETE /api/users/me (e2e)', () => {
     redis.disconnect();
   });
 
-  async function seedUser(loginId: string) {
+  async function createLoggedInUser(loginId: string) {
     const user = await dataSource.getRepository(User).save({
       loginId,
       email: `${loginId}@e2e.test`,
       password: await bcrypt.hash(PASSWORD, 4),
       verified: true,
     });
-    const userId = user.userId;
+    const res = await request(app.getHttpServer())
+      .post('/login')
+      .send({ id: loginId, password: PASSWORD })
+      .expect(200);
+    const tokens = res.body as { accessToken: string; refreshToken: string };
+    return { userId: user.userId, tokens };
+  }
+
+  async function seedUser(loginId: string) {
+    const { userId, tokens } = await createLoggedInUser(loginId);
     const tasks = await dataSource.getRepository(PrintTask).save([
       { userId, artworkName: 'done', status: 'COMPLETED' as const },
       { userId, artworkName: 'running', status: 'PRINTING' as const },
@@ -83,11 +94,6 @@ describe('DELETE /api/users/me (e2e)', () => {
       );
     }
 
-    const res = await request(app.getHttpServer())
-      .post('/login')
-      .send({ id: loginId, password: PASSWORD })
-      .expect(200);
-    const tokens = res.body as { accessToken: string; refreshToken: string };
     return { userId, keys, tokens };
   }
 
@@ -137,5 +143,56 @@ describe('DELETE /api/users/me (e2e)', () => {
       .post('/reissue')
       .set('Authorization', `Bearer ${victim.tokens.refreshToken}`)
       .expect(401);
+
+    // 아직 만료되지 않은 액세스 토큰으로도 삭제된 계정의 프로필은 조회되지 않는다.
+    await request(app.getHttpServer())
+      .get('/api/users/me')
+      .set('Authorization', `Bearer ${victim.tokens.accessToken}`)
+      .expect(401);
+  });
+
+  it('GET /api/users/me는 비밀번호 없이 본인 프로필을 반환한다', async () => {
+    const loginId = `me${Date.now()}`;
+    const { userId, tokens } = await createLoggedInUser(loginId);
+
+    const res = await request(app.getHttpServer())
+      .get('/api/users/me')
+      .set('Authorization', `Bearer ${tokens.accessToken}`)
+      .expect(200);
+
+    expect(Object.keys(res.body as object).sort()).toEqual([
+      'createdAt',
+      'email',
+      'loginId',
+      'userId',
+    ]);
+    expect(res.body).toMatchObject({
+      userId,
+      loginId,
+      email: `${loginId}@e2e.test`,
+    });
+  });
+
+  it('진행 중인 출력이 없으면 GET /api/prints/current는 JSON null을 반환한다', async () => {
+    const { tokens } = await createLoggedInUser(`noprint${Date.now()}`);
+
+    const res = await request(app.getHttpServer())
+      .get('/api/prints/current')
+      .set('Authorization', `Bearer ${tokens.accessToken}`)
+      .expect(200)
+      .expect('Content-Type', /application\/json/);
+
+    expect(res.text).toBe('null');
+  });
+
+  it('CORS_ORIGIN 미설정 시 브라우저 Origin의 프리플라이트를 허용한다', async () => {
+    const res = await request(app.getHttpServer())
+      .options('/login')
+      .set('Origin', 'http://localhost:3000')
+      .set('Access-Control-Request-Method', 'POST')
+      .set('Access-Control-Request-Headers', 'content-type,authorization')
+      .expect(204);
+
+    expect(res.headers['access-control-allow-origin']).toBe('*');
   });
 });
